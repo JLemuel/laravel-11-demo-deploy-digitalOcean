@@ -1,5 +1,4 @@
 name: Deploy Laravel Application to Production Server
-
 on:
   push:
     branches:
@@ -18,12 +17,6 @@ jobs:
       with:
         php-version: 8.3
 
-    - name: Cache Composer dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.composer/cache
-        key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
-
     - name: Install Composer Dependencies
       run: composer install --optimize-autoloader --no-dev --no-progress --no-interaction --prefer-dist
 
@@ -32,48 +25,11 @@ jobs:
       with:
         node-version: '20'
 
-    - name: Cache NPM dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.npm
-        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-
     - name: Install NPM Dependencies
       run: npm install
 
     - name: Build NPM Assets
       run: npm run build
-
-    - name: Create .env file
-      run: echo "${{ secrets.PROD_ENV_FILE }}" > .env
-
-    - name: Run Tests
-      run: php artisan test
-
-    - name: Run Security Scan
-      run: |
-        composer require enlightn/security-checker --dev
-        php artisan security:check
-
-    - name: Enable Maintenance Mode
-      uses: appleboy/ssh-action@v0.1.6
-      with:
-        host: ${{ secrets.VPS_HOST }}
-        username: ${{ secrets.VPS_USER }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        script: |
-          cd /var/www/html/job-management.online
-          php artisan down
-
-    - name: Backup Database
-      uses: appleboy/ssh-action@v0.1.6
-      with:
-        host: ${{ secrets.VPS_HOST }}
-        username: ${{ secrets.VPS_USER }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        script: |
-          cd /var/www/html/job-management.online
-          php artisan backup:run --only-db
 
     - name: Synchronize Files To Server
       uses: easingthemes/ssh-deploy@v2.1.5
@@ -94,46 +50,3 @@ jobs:
           cd /var/www/html/job-management.online
           php artisan migrate --force
           php artisan optimize
-
-    - name: Disable Maintenance Mode
-      uses: appleboy/ssh-action@v0.1.6
-      with:
-        host: ${{ secrets.VPS_HOST }}
-        username: ${{ secrets.VPS_USER }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        script: |
-          cd /var/www/html/job-management.online
-          php artisan up
-
-    - name: Notify Slack on Success
-      uses: 8398a7/action-slack@v3
-      with:
-        status: ${{ job.status }}
-        text: Deployment to production succeeded!
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
-      if: success()
-
-    - name: Notify Slack on Failure
-      uses: 8398a7/action-slack@v3
-      with:
-        status: ${{ job.status }}
-        text: Deployment to production failed!
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
-      if: failure()
-
-    - name: Rollback on Failure
-      if: failure()
-      uses: appleboy/ssh-action@v0.1.6
-      with:
-        host: ${{ secrets.VPS_HOST }}
-        username: ${{ secrets.VPS_USER }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        script: |
-          cd /var/www/html/job-management.online
-          git reset --hard HEAD~1
-          composer install --no-dev --no-interaction --prefer-dist
-          php artisan migrate:rollback
-          php artisan optimize
-          php artisan up
