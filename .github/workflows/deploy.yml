@@ -1,4 +1,5 @@
 name: Deploy Laravel Application to Production Server
+
 on:
   push:
     branches:
@@ -40,7 +41,7 @@ jobs:
         REMOTE_USER: ${{ secrets.VPS_USER }}
         TARGET: "/var/www/html/job-management.online"
 
-    - name: Run Remote/Artisan Commands
+    - name: Run Remote Artisan Commands
       uses: appleboy/ssh-action@v0.1.6
       with:
         host: ${{ secrets.VPS_HOST }}
@@ -48,5 +49,6 @@ jobs:
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
           cd /var/www/html/job-management.online
+          php artisan route:clear  # Clear cached routes
           php artisan migrate --force
           php artisan optimize
